@@ -99,6 +99,7 @@ const [doctorId,setdoctorId] = useState<string|null>("");
     if (message) {
        const roomId = `room_${doctorId}_${clientId}`;
       let conversationId = convoId
+      console.log("ids = ",convoId);
       socket.emit("sendMessage", {
         conversationId,
         roomId,

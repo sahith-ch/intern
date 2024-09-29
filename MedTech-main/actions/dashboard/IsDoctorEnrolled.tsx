@@ -4,18 +4,18 @@ import { db } from '@/lib/db';
 
 export const IsDoctorEnrolled = async (id:any) => {
     if (id) {
-    const profile = await db.doctorProfile.findFirst({
+    const profile = await db.doctor_profiles.findFirst({
         where: {
           userId:id,
         },
       });
   
-      const availability = await db.doctorAvailabilityDetails.findFirst({
+      const availability = await db.doctor_availability_details.findFirst({
         where: {
           userId:id,
         },
       });
-      const license = await db.doctorLicense.findFirst({
+      const license = await db.doctor_licenses.findFirst({
         where: {
           userId:id,
         },

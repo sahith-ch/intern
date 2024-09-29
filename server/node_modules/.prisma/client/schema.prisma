@@ -8,59 +8,24 @@ datasource db {
 }
 
 model User {
-  id             String                    @id @default(cuid())
-  name           String?
-  email          String?                   @unique
-  password       String?
-  role           UserRole                  @default(USER)
-  phone          String?                   @unique
-  numberVerified Boolean                   @default(false)
-  image          String?
-  about          String?
-  emailVerified  DateTime?
-  participants   ConversationParticipant[] @relation("UserParticipants")
-  messages       Message[]                 @relation("UserMessages")
-  accounts       Account[]
+  id                          String                       @id @default(cuid())
+  name                        String?
+  email                       String?                      @unique
+  password                    String?
+  role                        UserRole                     @default(USER)
+  phone                       String?                      @unique
+  numberVerified              Boolean                      @default(false)
+  image                       String?
+  about                       String?
+  emailVerified               DateTime?
+  participants                ConversationParticipant[]    @relation("UserParticipants")
+  messages                    Message[]                    @relation("UserMessages")
+  accounts                    Account[]
+  doctor_availability_details doctor_availability_details?
+  doctor_licenses             doctor_licenses?
+  doctor_profiles             doctor_profiles?
 
   @@map("users")
-}
-
-model DoctorProfile {
-  userId            String @unique
-  id                Int    @id @default(autoincrement())
-  legalName         String
-  gender            String
-  dateOfBirth       String
-  address           String
-  country           String
-  state             String
-  city              String
-  qualification     String
-  BookedAppointment Float
-  specialization    String
-  subSpecialist     String
-  experienceYears   String
-  consultationFees  String
-}
-
-model DoctorAvailabilityDetails {
-  userId            String
-  id                Int      @id @default(autoincrement())
-  sessionFees       String
-  sessionLength     String
-  languages         String[]
-  availableDays     String[]
-  availableTimeFrom String
-  availableTimeSlot String[]
-}
-
-model DoctorLicense {
-  userId              String
-  id                  Int    @id @default(autoincrement())
-  imageUrl1           String
-  imageUrl2           String
-  registrationNumber1 String
-  registrationNumber2 String
 }
 
 model Account {
@@ -190,6 +155,47 @@ model ConversationParticipant {
   user           User         @relation("UserParticipants", fields: [userId], references: [id])
 
   @@unique([conversationId, userId])
+}
+
+model doctor_availability_details {
+  id                Int      @id @default(autoincrement())
+  userId            String   @unique
+  sessionFees       String
+  sessionLength     String
+  languages         String[]
+  availableDays     String[]
+  availableTimeFrom String
+  availableTimeSlot String[]
+  users             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model doctor_licenses {
+  id                  Int    @id @default(autoincrement())
+  userId              String @unique
+  imageUrl1           String
+  imageUrl2           String
+  registrationNumber1 String
+  registrationNumber2 String
+  users               User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model doctor_profiles {
+  id                Int    @id @default(autoincrement())
+  userId            String @unique
+  legalName         String
+  gender            String
+  dateOfBirth       String
+  address           String
+  country           String
+  state             String
+  city              String
+  qualification     String
+  bookedAppointment Float
+  specialization    String
+  subSpecialist     String
+  experienceYears   String
+  consultationFees  String
+  users             User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum UserRole {

@@ -114,7 +114,7 @@ io.on('connection', (socket) => {
         console.log(`User ${socket.id} joined room: ${roomId}`);
 
         try {
-            const conversation = await prisma.conversation.findFirst({
+            let conversation = await prisma.conversation.findFirst({
                 where: {
                     participants: {
                         every: {
@@ -134,7 +134,23 @@ io.on('connection', (socket) => {
                 socket.emit('conversationId',conversation.id)
                 socket.emit('previousMessages', conversation.messages);
             } else {
-                console.log('No existing conversation found');
+                conversation = await prisma.conversation.create({
+                    data: {
+                        participants: {
+                            create: [
+                                { userId: doctorId },
+                                { userId: clientId },
+                            ],
+                        },
+                    },
+                    include: {
+                        messages: true,
+                        participants: true,
+                    },
+
+    })
+    socket.emit('conversationId', conversation.id);
+    socket.emit('previousMessages', []);
             }
         } catch (error) {
             console.error('Error fetching previous messages:', error);
@@ -143,21 +159,34 @@ io.on('connection', (socket) => {
     });
 
     // Sending a message
-socket.on('sendMessage', async (data: {roomId:string; conversationId: string; message: string; senderId: string; filePath?: string; fileName?: string; fileType?: string }) => {
+socket.on('sendMessage', async (data) => {
       console.log("data = ",data)
         try {
-            const conversation = await prisma.conversation.findUnique({
+            let conversation = await prisma.conversation.findUnique({
                 where: { id: data.conversationId },
                 include: { participants: true },
             });
+            console.log("here", data.roomId)
+            let [doctorId,clientId] = data.roomId.split('_')
 
             if (!conversation) {
-                socket.emit('error', { message: 'Conversation not found.' });
-                return;
-            }
-
+                conversation = await prisma.conversation.create({
+                    data: {
+                        participants: {
+                            create: [
+                                { userId: doctorId },
+                                { userId: clientId },
+                            ],
+                        },
+                        
+                    },
+                    include: {
+                        participants: true, 
+                    },
+                });
+            }
             // Check if it's a community conversation and if the sender is a doctor
-            if (conversation.type === ConversationType.COMMUNITY) {
+            if (conversation?.type === ConversationType.COMMUNITY) {
                 const isDoctor = conversation.participants.some((p: ConversationParticipant) => p.userId === data.senderId);
                 if (!isDoctor) {
                     socket.emit('error', { message: 'You are not allowed to send messages in this community.' });
@@ -249,14 +278,14 @@ socket.on('sendMessage', async (data: {roomId:string; conversationId: string; me
     });
 
     // Creating a community
-    socket.on('createCommunity', async ({ doctorIds, adminId }: { doctorIds: string[]; adminId: string }) => {
+    socket.on('createCommunity', async ({ doctorIds, patientIds }: { doctorIds: string[]; patientIds: string[] }) => {
         try {
             const community = await prisma.conversation.create({
                 data: {
                     type: ConversationType.COMMUNITY,
                     participants: {
                         create: [
-                            { userId: adminId },
+                            ...(patientIds ? patientIds.map(patientId => ({ userId: patientId })) : []),
                             ...doctorIds.map(doctorId => ({ userId: doctorId })),
                         ],
                     },

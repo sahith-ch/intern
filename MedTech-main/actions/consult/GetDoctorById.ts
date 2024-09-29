@@ -16,13 +16,13 @@ export const GetDoctorById = async (id: string) => {
       return null;
     }
 
-    const profile = await db.doctorProfile.findFirst({
+    const profile = await db.doctor_profiles.findFirst({
       where: {
         userId: doctor.id,
       },
     });
 
-    const availability = await db.doctorAvailabilityDetails.findFirst({
+    const availability = await db.doctor_availability_details.findFirst({
       where: {
         userId: doctor.id,
       },
