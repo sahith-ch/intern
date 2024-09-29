@@ -1,0 +1,203 @@
+
+datasource db {
+  provider  = "postgresql"
+  url  	    = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole{
+  USER
+  DOCTOR
+  ADMIN
+}
+
+model User {
+  id               String    @id @default(cuid())
+  name             String?
+  email            String?   @unique
+  emailVerified    DateTime? 
+  password         String?
+  role             UserRole  @default(USER)
+  phone            String?   @unique
+  numberVerified   Boolean   @default(false)
+  image            String?
+  about            String?
+  accounts         Account[]
+  messages         Message[]  @relation("UserMessages") 
+  participants     ConversationParticipant[] @relation("UserParticipants") 
+  @@map("users")
+}
+
+
+
+model DoctorProfile {
+  userId           String @unique
+  id                 Int       @id @default(autoincrement())
+  legalName          String    
+  gender             String
+  dateOfBirth                String
+  address            String
+  country            String
+  state              String
+  city               String
+  qualification      String
+  BookedAppointment  Float
+  specialization     String
+  subSpecialist  String
+  experienceYears         String
+  consultationFees        String
+}
+
+model DoctorAvailabilityDetails {
+   userId           String 
+   id                 Int       @id @default(autoincrement())
+ sessionFees        String
+  sessionLength      String
+  languages          String[]
+   availableDays      String[]
+  availableTimeFrom  String
+  availableTimeSlot    String[]
+}
+
+model DoctorLicense {
+   userId           String 
+  id                    Int    @id @default(autoincrement())
+  imageUrl1            String
+  imageUrl2            String
+  registrationNumber1  String
+  registrationNumber2  String
+}
+
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String  @map("user_id")
+  type               String
+  provider           String
+  providerAccountId  String  @map("provider_account_id")
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+ 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+ 
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model VerificationToken{
+  id String @id @default(cuid())
+  email String
+  token String @unique
+  expires DateTime
+  @@unique([email,token])
+}
+
+model PasswordReset{
+  id      String @id @default(cuid())
+  email   String
+  token   String @unique
+  expires DateTime
+  @@unique([email,token])
+}
+
+model Tracker {
+  id              String       @id @default(uuid())
+  userId         String
+  activity        Json
+  sleep           Json
+  wellness        Json    
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model Overview {
+  id        String   @id @default(uuid())
+  userId  String @unique
+  report  Json[]
+}
+
+model HealthMonitoring {
+  id         String   @id @default(uuid())
+  userId  String @unique
+  monthly_monitoring     Json
+  weekly_monitoring     Json
+  daily_monitoring     Json
+}
+
+model HealthExpected {
+  id         String   @id @default(uuid())
+  userId  String @unique
+  report  Json[]
+}
+
+model Otp {
+  id      Int      @id @default(autoincrement())
+  phone   String   @unique
+  otp     String
+  expiry  DateTime
+}
+model emailOtp {
+  id      Int      @id @default(autoincrement())
+  email   String   @unique
+  otp     String
+  expiry  DateTime
+}
+
+
+model BookedAppointment {
+  id           Int    @id @default(autoincrement())
+  userId       String
+  doctor_id    String
+  time         String
+  date         DateTime
+  doctorName   String 
+  purpose      String
+  reschedule   String
+  status       String
+  mode         String
+  age          Float
+  name         String
+  gender       String
+}
+
+// Keep the existing models as they are...
+model Message {
+  id              Int       @id @default(autoincrement())
+  content         String
+  sender          User      @relation("UserMessages", fields: [senderId], references: [id])
+  senderId        String
+  conversation    Conversation @relation(fields: [conversationId], references: [id])
+  conversationId  Int
+  createdAt       DateTime  @default(now())
+  filePath        String?  
+  fileName        String?   
+  fileType        String? 
+}
+
+model Conversation {
+  id              Int       @id @default(autoincrement())
+  participants    ConversationParticipant[]
+  messages        Message[]
+  createdAt       DateTime  @default(now())
+}
+
+model ConversationParticipant {
+  id              Int       @id @default(autoincrement())
+  conversation    Conversation @relation(fields: [conversationId], references: [id])
+  conversationId  Int
+  user            User      @relation("UserParticipants", fields: [userId], references: [id]) // Reference to the user
+  userId          String
+  joinedAt        DateTime  @default(now())
+
+  @@unique([conversationId, userId])
+}
+
+
