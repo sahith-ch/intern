@@ -98,10 +98,22 @@ app.post('/api/upload', upload.single('file'), async (req: Request, res: Respons
     }
 });
 
+
+
 // Socket.io connection
 io.on('connection', (socket) => {
     console.log('A user connected: ' + socket.id);
-      
+
+    socket.on('videoRoom',async ({ doctorId, clientId }: { doctorId: string; clientId: string })=>{
+        if (!doctorId || !clientId) {
+            socket.emit('error', { message: 'Invalid room ID format' });
+            return;
+        }
+
+        const videoRoomId = `video_${doctorId}_${clientId}`;
+        socket.join(videoRoomId)
+    })
+    
     // Joining a private conversation room
     socket.on('joinRoom', async ({ doctorId, clientId }: { doctorId: string; clientId: string }) => {
         if (!doctorId || !clientId) {
@@ -159,7 +171,7 @@ io.on('connection', (socket) => {
     });
 
     // Sending a message
-socket.on('sendMessage', async (data) => {
+   socket.on('sendMessage', async (data) => {
       console.log("data = ",data)
         try {
             let conversation = await prisma.conversation.findUnique({
@@ -299,6 +311,33 @@ socket.on('sendMessage', async (data) => {
             socket.emit('error', { message: 'Error creating community, please try again later.' });
         }
     });
+
+
+    //connecting to call
+    console.log('A user connected');
+    socket.emit('me', socket.id);
+
+    //Ending the call
+    socket.on("endCall",()=>{
+         socket.broadcast.emit("callEnded")
+    })
+    
+    //call user
+    socket.on("callUser",(data)=>{
+         io.to(data.userToCall).emit("callUser",{signal: data.signalData , from:data.from , name:data.name});
+         console.log("call user backend",data);
+         
+    })
+
+    //Answer call
+    socket.on("answerCall", (data) => {
+        console.log("answeing call");
+        
+		io.to(data.to).emit("callAccepted", data.signal)
+	})
+
+
+
 
     // Disconnect event
     socket.on('disconnect', () => {

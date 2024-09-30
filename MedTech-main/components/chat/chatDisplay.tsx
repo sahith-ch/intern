@@ -27,6 +27,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Input } from "../ui/input";
 import { useUser } from "@/app/context/userContext";
+import VideoCall from "./VideoCall";
 
 interface Message {
   id: number;
@@ -52,6 +53,11 @@ export function ChatDisplay({ data, removedata }: any) {
   const [isLoading, setIsLoading] = useState(false);
 const [doctorId,setdoctorId] = useState<string|null>("");
   const [clientId,setclientId] = useState<string|null>("");
+  const [isVideoCallActive, setIsVideoCallActive] = useState<boolean>(false);
+
+  const startVideoCall = () => {
+    setIsVideoCallActive(true); // Show the VideoCall component
+  };
 
   useEffect(() => {
     let doctorId = role === "DOCTOR" ? id : mail.selected;
@@ -324,6 +330,16 @@ const [doctorId,setdoctorId] = useState<string|null>("");
           </div>
         </div>
       )}
+
+    {isVideoCallActive ? (
+        <VideoCall socket={socket} setIsVideoCallActive={setIsVideoCallActive} />
+      ) : (
+        <div className="chat-controls">
+          <button onClick={startVideoCall} style={{ padding: '10px', backgroundColor: 'blue', color: 'white' }}>
+            Start Video Call
+          </button>
+        </div>
+      )}  
     </div>
   );
 }
