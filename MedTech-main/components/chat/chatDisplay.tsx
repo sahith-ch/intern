@@ -32,84 +32,61 @@ interface Message {
   id: number;
   content: string;
   senderId: string;
+  sender:{
+    name:string;
+  }
+  senderName:string
   createdAt: string;
   filePath?: string;
   fileType?: string;
   fileName?: string;
 }
 
-const socket = io("http://localhost:8000");
 
-export function ChatDisplay({ data, removedata }: any) {
+export function ChatDisplay({ socket ,messages,doctorId,convoId,clientId, removedata }: any) {
   const [mail, setMail] = useMail();
   const [message, setMessage] = useState<string>("");
-  const [messages, setMessages] = useState<Message[]>([]);
   const [open, setOpen] = useState(false);
   const { id, role } = useUser();
-  const [convoId,setConvoId] = useState<any>("")
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-const [doctorId,setdoctorId] = useState<string|null>("");
-  const [clientId,setclientId] = useState<string|null>("");
-
-  useEffect(() => {
-    let doctorId = role === "DOCTOR" ? id : mail.selected;
-    let clientId = role === "DOCTOR" ? mail.selected : id;
-    setdoctorId(doctorId)
-    setclientId(clientId)
-  
-    const roomId = `room_${doctorId}_${clientId}`;
-    socket.emit("joinRoom", { doctorId, clientId });
-
-    socket.on("previousMessages", (previousMessages: Message[]) => {
-      console.log("prev",previousMessages)
-      setMessages(previousMessages);
-    });
-    socket.on("receivedMessage", (newMessage: Message) => {
-      setMessages((prevMessages) => {
-        // Check if the message already exists to prevent duplicates
-        if (!prevMessages.some(msg => msg.id === newMessage.id)) {
-          return [...prevMessages, newMessage];
-        }
-        return prevMessages;
-      });
-    });
-    socket.on("conversationId", (id: any) => {
-      console.log(id);
-      setConvoId(id)
-    });
-
- 
-
-    return () => {
-      socket.off("previousMessages");
-      socket.off("receiveMessage");
-      socket.off("conversationId");
-
-    };
-  }, [doctorId, clientId,mail.selected]);
+console.log(doctorId,clientId )
 
   const handleEmojiClick = (event: any) => {
     setOpen(false);
     setMessage((prev) => prev + event.emoji);
   };
 
+  let reqid;
+
+  useEffect(() => {
+
+    // Cleanup listener on component unmount
+    return () => {
+      socket.off("conversationId");
+    };
+  }, []);
+
+  // Function to send message
   const sendMessage = () => {
-    if (message) {
-       const roomId = `room_${doctorId}_${clientId}`;
-      let conversationId = convoId
-      console.log("ids = ",convoId);
+   
+      const conversationType = mail.type === "COMMUNITY" ? "COMMUNITY" : "PRIVATE";
+      const roomId = conversationType === "PRIVATE" ? `room_${doctorId}_${clientId}` : convoId;
+reqid =conversationType === "PRIVATE" ?convoId:mail.selected
+    console.log('Sending message with convoId:', convoId); // Debugging log
+
       socket.emit("sendMessage", {
-        conversationId,
+        conversationType,
+        conversationId: reqid, // Use the stored convoId
         roomId,
         message,
         senderId: role === "DOCTOR" ? doctorId : clientId,
       });
-      setMessage("");
-    }
-  };
 
+      setMessage(""); // Clear the message input
+ 
+  };
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
       const selectedFile = event.target.files[0];
@@ -186,7 +163,7 @@ const [doctorId,setdoctorId] = useState<string|null>("");
   useEffect(() => {
     setOpen(false);
     setMessage("");
-  }, [removedata, data]);
+  }, [removedata, messages]);
 
   const renderFilePreview = (filePath: string, fileType: string, fileName: string) => {
     if (fileType.startsWith('image/')) {
@@ -209,17 +186,18 @@ const [doctorId,setdoctorId] = useState<string|null>("");
       );
     }
   };
+  console.log("message",messages)
+  console.log("here=",mail) 
   return (
     <div className="flex relative h-full flex-col">
-      {/* Header */}
       <div className="flex items-center h-16 p-3">
-        {/* ... (header content remains the same) ... */}
       </div>
       <Separator />
       {/* Chat messages */}
       <ScrollArea className="h-[calc(100%-96px)] relative overflow-auto">
         <div className="flex lg:w-[70%] mx-auto p-4 pb-8 gap-2 flex-col">
           {messages.length > 0 ? (
+           
             messages.map((item, index) => {
               const currentDate = new Date(item.createdAt);
               const previousDate =
@@ -238,7 +216,8 @@ const [doctorId,setdoctorId] = useState<string|null>("");
                       </span>
                     </div>
                   )}
-                  <div className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}>
+                  <div className={`flex  ${isCurrentUser ? "justify-end" : "justify-start"}`}>
+                   
                     <div
                       className={`lg:max-w-[40%] max-w-[80%] px-2 py-1 font-normal rounded-t-md ${
                         isCurrentUser
@@ -246,17 +225,27 @@ const [doctorId,setdoctorId] = useState<string|null>("");
                           : "rounded-r-md bg-muted text-foreground"
                       }`}
                     >
-                      {item.filePath ? (
+                      {
+                                        <div className="text-sm font-semibold flex justify-end items-end xt-white-600 mb-1">
+          {item.senderName}
+        </div>
+            }
+                     {item.filePath ? (
                         renderFilePreview(item.filePath, item.fileType || '', item.fileName || '')
                       ) : (
+                        
                         <p>{item.content}</p>
                       )}
+
                       <div className="w-full flex justify-end">
+                        
                         <p className="text-[10px] opacity-85">
                           {format(currentDate, "p")}
                         </p>
                       </div>
+
                     </div>
+    
                   </div>
                 </div>
               );
@@ -292,7 +281,9 @@ const [doctorId,setdoctorId] = useState<string|null>("");
                     <EmojiPicker onEmojiClick={handleEmojiClick} />
                   </PopoverContent>
                 </Popover>
-                <Input
+                {mail.type === "PRIVATE"||role=="DOCTOR"?
+
+<><Input
                   placeholder="Type a message..."
                   className="bg-background"
                   value={message}
@@ -307,13 +298,8 @@ const [doctorId,setdoctorId] = useState<string|null>("");
                   onChange={handleFileChange}
                   className="hidden"
                   id="file-upload"
-                />
-                <label htmlFor="file-upload">
-                  <Paperclip size={25} className="cursor-pointer" />
-                </label>
-              </>
-            )}
-            <Button
+/>
+<Button
               variant="outline"
               className="text-muted-foreground w-[40%] bg-muted"
               onClick={previewUrl ? uploadFile : sendMessage}
@@ -321,6 +307,13 @@ const [doctorId,setdoctorId] = useState<string|null>("");
             >
               {isLoading ? <Loader className="animate-spin" /> : (previewUrl ? "Upload" : "Send")}
             </Button>
+</>:<></>} 
+                <label htmlFor="file-upload">
+                  <Paperclip size={25} className="cursor-pointer" />
+                </label>
+              </>
+            )}
+
           </div>
         </div>
       )}

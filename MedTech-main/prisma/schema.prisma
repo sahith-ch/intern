@@ -8,22 +8,24 @@ datasource db {
 }
 
 model User {
-  id             String                    @id @default(cuid())
-  name           String?
-  email          String?                   @unique
-  password       String?
-  role           UserRole                  @default(USER)
-  phone          String?                   @unique
-  numberVerified Boolean                   @default(false)
-  image          String?
-  about          String?
-  emailVerified  DateTime?
-  participants   ConversationParticipant[] @relation("UserParticipants")
-  messages       Message[]                 @relation("UserMessages")
-  accounts       Account[]
+  id                          String                       @id @default(cuid())
+  name                        String?
+  email                       String?                      @unique
+  password                    String?
+  role                        UserRole                     @default(USER)
+  phone                       String?                      @unique
+  numberVerified              Boolean                      @default(false)
+  image                       String?
+  about                       String?
+  emailVerified               DateTime?
+  socket_id                   String?
+  participants                ConversationParticipant[]    @relation("UserParticipants")
+  messages                    Message[]                    @relation("UserMessages")
+  accounts                    Account[]
   doctor_availability_details doctor_availability_details?
   doctor_licenses             doctor_licenses?
   doctor_profiles             doctor_profiles?
+
   @@map("users")
 }
 
@@ -179,11 +181,12 @@ model Message {
 }
 
 model Conversation {
-  id           String                    @id @default(cuid())
-  createdAt    DateTime                  @default(now())
-  type         ConversationType          @default(PRIVATE)
-  participants ConversationParticipant[]
-  messages     Message[]
+  id            String                    @id @default(cuid())
+  createdAt     DateTime                  @default(now())
+  type          ConversationType          @default(PRIVATE)
+  communityName String?
+  participants  ConversationParticipant[]
+  messages      Message[]
 }
 
 model ConversationParticipant {

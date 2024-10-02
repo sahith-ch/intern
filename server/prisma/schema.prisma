@@ -18,12 +18,14 @@ model User {
   image                       String?
   about                       String?
   emailVerified               DateTime?
+  socket_id                   String?
   participants                ConversationParticipant[]    @relation("UserParticipants")
   messages                    Message[]                    @relation("UserMessages")
   accounts                    Account[]
   doctor_availability_details doctor_availability_details?
   doctor_licenses             doctor_licenses?
   doctor_profiles             doctor_profiles?
+  reviews                     reviews[]
 
   @@map("users")
 }
@@ -139,17 +141,19 @@ model Message {
 }
 
 model Conversation {
-  id           String                    @id @default(cuid())
-  createdAt    DateTime                  @default(now())
-  type         ConversationType          @default(PRIVATE)
-  participants ConversationParticipant[]
-  messages     Message[]
+  id            String                    @id @default(cuid())
+  createdAt     DateTime                  @default(now())
+  type          ConversationType          @default(PRIVATE)
+  communityName String?
+  participants  ConversationParticipant[]
+  messages      Message[]
 }
 
 model ConversationParticipant {
   id             Int          @id @default(autoincrement())
   conversationId String
   userId         String
+  unreadCount     Int          @default(0)
   joinedAt       DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   user           User         @relation("UserParticipants", fields: [userId], references: [id])
@@ -196,6 +200,19 @@ model doctor_profiles {
   experienceYears   String
   consultationFees  String
   users             User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model reviews {
+  id                Int      @id @default(autoincrement())
+  userId            String
+  rating            String
+  message           String
+  patientName       String
+  patientId         String
+  patientProfilePic String
+  createdAt         DateTime @default(now())
+  appointmentId     Float
+  users             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 enum UserRole {

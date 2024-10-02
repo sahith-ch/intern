@@ -1,7 +1,7 @@
 "use server"
 import { db } from "@/lib/db";
 
-export const getAllAppointment = async (id: string,role:string) => {
+export const  getAllAppointment = async (id: string,role:string) => {
   let appointments
   try {    
     if (typeof id !== 'string' || !id.trim()) {
@@ -9,12 +9,12 @@ export const getAllAppointment = async (id: string,role:string) => {
     }
     console.log("Role = ",role)
 if(role!='DOCTOR'){
-    appointments = await db.BookedAppointment.findMany({
+    appointments = await db.bookedAppointment.findMany({
       where: { userId: id },
     });
   }
   else{
-     appointments = await db.BookedAppointment.findMany({
+     appointments = await db.bookedAppointment.findMany({
       where: { doctor_id: id },
     });
   }

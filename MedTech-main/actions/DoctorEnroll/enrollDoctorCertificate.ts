@@ -10,14 +10,14 @@ export const EnrollDoctorCretificate = async (id: string, data: any) => {
       return { error: "User not found" };
     }
 
-    const existingProfile = await db.doctorLicense.findFirst({
+    const existingProfile = await db.doctor_licenses.findFirst({
       where: { userId: id },
     });
     if (existingProfile) {
       return { error: "Doctor profile already exists for this user" };
     }
 
-    const result= await db.doctorLicense.create({
+    const result= await db.doctor_licenses.create({
       data: {
         ...data,
         userId: id,

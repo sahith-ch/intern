@@ -125,16 +125,29 @@ io.on('connection', (socket) => {
                     },
                 },
                 include: {
-                    messages: true,
+                    messages: {
+                        include: {
+                            sender: true, // Include sender information
+                        },
+                    },
                     participants: true,
                 },
             });
 
             if (conversation) {
+                const messagesWithSenderNames = conversation.messages.map(message => ({
+                    ...message,
+                    senderName: message.sender.name, // Ensure you have the sender's name here
+                }));
+                const participant = conversation.participants.find(p => p.userId === socket.id);
+
+                const unreadCount = participant ? participant.unreadCount : 0;
+
                 socket.emit('conversationId',conversation.id)
-                socket.emit('previousMessages', conversation.messages);
+                console.log('conversationId',conversation.id)
+                socket.emit('previousMessages', {message:messagesWithSenderNames,unreadCount});
             } else {
-                conversation = await prisma.conversation.create({
+               let convo = await prisma.conversation.create({
                     data: {
                         participants: {
                             create: [
@@ -149,7 +162,7 @@ io.on('connection', (socket) => {
                     },
 
     })
-    socket.emit('conversationId', conversation.id);
+    socket.emit('conversationId', convo.id);
     socket.emit('previousMessages', []);
             }
         } catch (error) {
@@ -159,61 +172,173 @@ io.on('connection', (socket) => {
     });
 
     // Sending a message
-socket.on('sendMessage', async (data) => {
-      console.log("data = ",data)
+    socket.on('sendMessage', async (data) => {
+        console.log("Received data: ", data);
+    
         try {
-            let conversation = await prisma.conversation.findUnique({
-                where: { id: data.conversationId },
-                include: { participants: true },
-            });
-            console.log("here", data.roomId)
-            let [doctorId,clientId] = data.roomId.split('_')
-
-            if (!conversation) {
-                conversation = await prisma.conversation.create({
-                    data: {
-                        participants: {
-                            create: [
-                                { userId: doctorId },
-                                { userId: clientId },
-                            ],
-                        },
-                        
-                    },
-                    include: {
-                        participants: true, 
-                    },
+            let conversation;
+    
+            if (data.conversationType === "PRIVATE") {
+                // Handle PRIVATE conversations between two participants
+                conversation = await prisma.conversation.findUnique({
+                    where: { id: data.conversationId },
+                    include: { participants: true },
                 });
-            }
-            // Check if it's a community conversation and if the sender is a doctor
-            if (conversation?.type === ConversationType.COMMUNITY) {
-                const isDoctor = conversation.participants.some((p: ConversationParticipant) => p.userId === data.senderId);
-                if (!isDoctor) {
-                    socket.emit('error', { message: 'You are not allowed to send messages in this community.' });
+    
+                // If no conversation exists, create one between doctor and client
+                if (!conversation) {
+                    const [doctorId, clientId] = data.roomId.split('_');
+                   // console.log(doctorId,clientId)
+                    conversation = await prisma.conversation.create({
+                        data: {
+                            type: "PRIVATE",
+                            participants: {
+                                create: [
+                                    { userId: doctorId },
+                                    { userId: clientId },
+                                ],
+                            },
+                        },
+                        include: { participants: true },
+                    });
+                }
+            } else if (data.conversationType === "COMMUNITY") {
+                // Handle COMMUNITY messages based on the conversationId
+                conversation = await prisma.conversation.findUnique({
+                    where: { id: data.conversationId },
+                    include: { participants: true },
+                });
+    
+                if (!conversation) {
+                    throw new Error("Community conversation not found");
+                }
+    
+                // Check if the sender is a participant in the community
+                const isMember = conversation.participants.some(p => p.userId === data.senderId);
+                if (!isMember) {
+                    socket.emit('error', { message: 'You are not a member of this community.' });
+                    return;
+                }
+    
+                // Check if the sender is a doctor (if that's still a requirement)
+                const sender = await prisma.user.findUnique({ where: { id: data.senderId } });
+                if (sender?.role !== 'DOCTOR') {
+                    socket.emit('error', { message: 'Only doctors can send messages in this community.' });
                     return;
                 }
             }
-
-            const newMessage = await prisma.message.create({
-                data: {
-                    content: data.message,
-                    senderId: data.senderId,
-                    conversationId: data.conversationId,
-                    filePath: data.filePath,
-                    fileName: data.fileName,
-                    fileType: data.fileType,
-                },
-            });
-            console.log("room id",data.roomId);
-            io.to(data.roomId).emit('receivedMessage', newMessage);
-            console.log('Message sent:', newMessage);
+    
+            // Create the new message
+                
+                const newMessage = await prisma.message.create({
+                    data: {
+                        content: data.message,
+                        senderId: data.senderId,
+                        conversationId: data.conversationId,
+                        fileName: data.fileName,
+                        filePath: data.filePath,
+                        fileType: data.fileType,
+                    },
+                });
+        
+                const senderDetails = await prisma.user.findUnique({
+                    where: { id: data.senderId },
+                    select: { id: true, name: true }, // You can add more fields if needed
+                });
+                await prisma.conversationParticipant.updateMany({
+            where: {
+                conversationId: data.conversationId,
+                userId: {
+                    not: data.senderId
+                }
+            },
+            data: {
+                unreadCount: {
+                    increment: 1
+                }
+            }
+        });
+                // Construct the message object to emit
+                const messageToSend = {
+                    ...newMessage,
+                    senderName: senderDetails?.name || 'Unknown', // Handle case where name is not found
+                };
+        
+                // Determine the room to emit the message to
+                const roomId = data.conversationType === "COMMUNITY" 
+                    ? `community_${data.conversationId}`
+                    : data.roomId;
+                // Broadcast the new message to the appropriate room
+                io.to(roomId).emit('receivedMessage', messageToSend);
+        
+                console.log('Message sent:', messageToSend);
+    
         } catch (error) {
-            console.error('Error sending message:', error);
+            console.error("Error sending message:", error);
             socket.emit('error', { message: 'Error sending message, please try again later.' });
         }
     });
+    
+    // Add this event handler for joining community rooms
+    socket.on('joinCommunity', async (data) => {
+        const { conversationId, userId } = data;
+        try {
+            const conversation = await prisma.conversation.findUnique({
+                where: { id: conversationId },
+                include: {
+                    participants: true,
+                    messages: {
+                        include: {
+                            sender: {
+                                select: {
+                                    id: true,  // Include sender's ID if needed
+                                    name: true // Include sender's name
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+    
+            console.log("Conversations = ",conversation)
+            const participant = conversation?.participants.find(p => p.userId === userId);
 
-    // Handling file upload via Socket.io
+            if (!conversation) {
+                throw new Error("Community not found");
+            }
+            const isMember = conversation.participants.some(p => p.userId === userId);
+            if (!isMember) {
+                throw new Error("User is not a member of this community");
+            }
+    
+            const communityRoomId = `community_${conversationId}`;
+            socket.join(communityRoomId);
+         socket.emit('previousMessages', {message:conversation.messages,unreadCount:participant?.unreadCount });
+
+            console.log(`User ${userId} joined community room ${communityRoomId}`);
+    
+        } catch (error) {
+            console.error("Error joining community:", error);
+            socket.emit('error', { message: 'Error joining community, please try again later.' });
+        }
+    });
+    socket.on('resetUnreadCount', async ({ userId, conversationId }) => {
+        try {
+            await prisma.conversationParticipant.updateMany({
+                where: {
+                    conversationId: conversationId,
+                    userId: userId
+                },
+                data: {
+                    unreadCount: 0
+                }
+            });
+            socket.emit('unreadCountReset', { conversationId });
+        } catch (error) {
+            console.error("Error resetting unread count:", error);
+            socket.emit('error', { message: 'Error resetting unread count, please try again later.' });
+        }
+    });
     socket.on('fileUpload', async (data: { conversationId: string; senderId: string; filePath: string; fileName: string; fileType: string }) => {
         try {
             const conversation = await prisma.conversation.findUnique({
@@ -254,51 +379,65 @@ socket.on('sendMessage', async (data) => {
     });
 
     // Joining a community
-    socket.on('joinCommunity', async ({ conversationId, userId }: { conversationId: string; userId: string }) => {
-        const roomId = `community_${conversationId}`;
-        socket.join(roomId);
-        console.log(`User ${userId} joined community room: ${roomId}`);
+    // socket.on('joinCommunity', async ({ conversationId, userId }: { conversationId: string; userId: string }) => {
+    //     const roomId = `community_${conversationId}`;
+    //     socket.join(roomId);
+    //     console.log(`User ${userId} joined community room: ${roomId}`);
+    
+    //     // Fetch previous messages for the conversation
+    //     try {
+    //         console.log(`Fetching conversation with ID: ${conversationId}`); // Log the conversationId
+    //         const conversation = await prisma.conversation.findUnique({
+    //             where: { id: conversationId },
+    //             include: { messages: true },
+    //         });
 
-        // Fetch previous messages for the conversation
-        try {
-            const conversation = await prisma.conversation.findUnique({
-                where: { id: conversationId },
-                include: { messages: true },
-            });
-
-            if (conversation) {
-                socket.emit('previousMessages', conversation.messages);
-            } else {
-                socket.emit('error', { message: 'Community not found.' });
-            }
-        } catch (error) {
-            console.error('Error fetching community messages:', error);
-            socket.emit('error', { message: 'Error fetching messages, please try again later.' });
-        }
-    });
+    //         if (conversation) {
+    //             console.log(`Found conversation:`, conversation); // Log the found conversation
+    //             socket.emit('previousMessages', conversation.messages);
+    //         } else {
+    //             console.log(`Community not found for ID: ${conversationId}`); // Log the error
+    //             socket.emit('error', { message: 'Community not found.' });
+    //         }
+    //     } catch (error) {
+    //         console.error('Error fetching community messages:', error);
+    //         socket.emit('error', { message: 'Error fetching messages, please try again later.' });
+    //     }
+    // });
+    
 
     // Creating a community
-    socket.on('createCommunity', async ({ doctorIds, patientIds }: { doctorIds: string[]; patientIds: string[] }) => {
+    socket.on('createCommunity', async ({ communityMembers, newCommunityName }) => {
         try {
+            // Step 1: Create the community
             const community = await prisma.conversation.create({
                 data: {
-                    type: ConversationType.COMMUNITY,
-                    participants: {
-                        create: [
-                            ...(patientIds ? patientIds.map(patientId => ({ userId: patientId })) : []),
-                            ...doctorIds.map(doctorId => ({ userId: doctorId })),
-                        ],
-                    },
+                    type: "COMMUNITY",
+                    communityName: newCommunityName,
                 },
             });
-
+    
+            // Step 2: Format communityMembers with conversationId
+            const formattedCommunityMembers = communityMembers.map((userId:string) => ({
+                userId: userId, // User ID for each participant
+                conversationId: community.id, // Use the community ID here
+                // joinedAt: new Date() // Optional: This will default to now() if omitted
+            }));
+    
+            // Step 3: Add participants to the community
+            await prisma.conversationParticipant.createMany({
+                data: formattedCommunityMembers,
+            });
+    
+            // Emit success message
             socket.emit('communityCreated', community);
-            console.log('Community created:', community);
+            console.log('Community created:', formattedCommunityMembers);
         } catch (error) {
             console.error('Error creating community:', error);
             socket.emit('error', { message: 'Error creating community, please try again later.' });
         }
     });
+    
 
     // Disconnect event
     socket.on('disconnect', () => {

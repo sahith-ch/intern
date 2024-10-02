@@ -13,13 +13,13 @@ export const getAllDoctorsWithDetails = async () => {
       const userIds = doctors.map(doctor => doctor.id);
   
       const profiles = await
-       db.doctorProfile.findMany({
+       db.doctor_profiles.findMany({
         where: {
           userId: { in: userIds },
         },
       });
   
-      const availabilityDetails = await db.doctorAvailabilityDetails.findMany({
+      const availabilityDetails = await db.doctor_availability_details.findMany({
         where: {
           userId: { in: userIds },
         },

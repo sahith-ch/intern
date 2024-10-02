@@ -16,14 +16,14 @@ export const EnrollDoctorProfile = async (id: string, values: any) => {
       return { error: "User not found" };
     }
 
-    const existingProfile = await db.doctorProfile.findFirst({
+    const existingProfile = await db.doctor_profiles.findFirst({
       where: { userId: id },
     });
     if (existingProfile) {
       return { error: "Doctor profile already exists for this user" };
     }
 
-    await db.doctorProfile.create({
+    await db.doctor_profiles.create({
       data: {
         ...values,
         userId: id,
