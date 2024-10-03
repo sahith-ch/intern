@@ -171,6 +171,8 @@ if(role!="DOCTOR"){
               name:item.doctorName,
               type:"PRIVATE"
             })
+            // socket.emit('resetUnreadCount', { userId: id, conversationId: item.id })
+
           }
         >
           <div className="flex w-full flex-col gap-1">

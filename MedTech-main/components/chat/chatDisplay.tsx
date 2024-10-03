@@ -27,6 +27,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Input } from "../ui/input";
 import { useUser } from "@/app/context/userContext";
+import VideoCall from "./VideoCall";
 
 interface Message {
   id: number;
@@ -51,7 +52,12 @@ export function ChatDisplay({ socket ,messages,doctorId,convoId,clientId, remove
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-console.log(doctorId,clientId )
+
+  const [isVideoCallActive, setIsVideoCallActive] = useState<boolean>(false);
+
+  const startVideoCall = () => {
+    setIsVideoCallActive(true); // Show the VideoCall component
+  };
 
   const handleEmojiClick = (event: any) => {
     setOpen(false);
@@ -128,15 +134,7 @@ reqid =conversationType === "PRIVATE" ?convoId:mail.selected
           fileType: file.type,
           fileName: file.name,
         });
-        setMessages(prevMessages => [...prevMessages, {
-          id: Date.now(), // Use a temporary ID
-          content: '',
-          senderId: role === "DOCTOR" ? doctorId : clientId,
-          createdAt: new Date().toISOString(),
-          filePath: data.filePath,
-          fileType: file.type,
-          fileName: file.name
-        }]);
+
         setFile(null);
         setPreviewUrl(null);
       socket.off("fileUpload");
@@ -227,7 +225,7 @@ reqid =conversationType === "PRIVATE" ?convoId:mail.selected
                     >
                       {
                                         <div className="text-sm font-semibold flex justify-end items-end xt-white-600 mb-1">
-          {item.senderName}
+          {item.sender?.name}
         </div>
             }
                      {item.filePath ? (
@@ -317,6 +315,16 @@ reqid =conversationType === "PRIVATE" ?convoId:mail.selected
           </div>
         </div>
       )}
+
+    {isVideoCallActive ? (
+        <VideoCall socket={socket} doctorId={doctorId} clientId={clientId} setIsVideoCallActive={setIsVideoCallActive} />
+      ) : (
+        <div className="chat-controls">
+          <button onClick={startVideoCall} style={{ padding: '10px', backgroundColor: 'blue', color: 'white' }}>
+            Start Video Call
+          </button>
+        </div>
+      )}  
     </div>
   );
 }

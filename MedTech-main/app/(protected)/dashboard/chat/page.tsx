@@ -165,7 +165,7 @@ const [messageCount,setmessageCount]=useState(0)
         {isMobile ? (
           mail.selected ? (
             <ResizablePanel defaultSize={defaultLayout[2]}>
-              <ChatDisplay socket={socket} convoId = {convoId} messages={messages} removedata={() => setMessage([])} />
+              <ChatDisplay socket={socket} doctorId={doctorId} clientId={clientId} convoId = {convoId} messages={messages} removedata={() => setMessage([])} />
               </ResizablePanel>
           ) : null
         ) : (
